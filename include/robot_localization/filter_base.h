@@ -38,13 +38,14 @@
 
 #include <Eigen/Dense>
 
-#include <ostream>
-#include <vector>
-#include <set>
-#include <map>
-#include <queue>
+#include <algorithm>
 #include <limits>
+#include <map>
+#include <ostream>
+#include <queue>
+#include <set>
 #include <string>
+#include <vector>
 
 #include <boost/shared_ptr.hpp>
 
@@ -366,7 +367,7 @@ class FilterBase
       double limit = accelerationLimit;
       double gain = accelerationGain;
 
-      if(decelerating)
+      if (decelerating)
       {
         limit = decelerationLimit;
         gain = decelerationGain;

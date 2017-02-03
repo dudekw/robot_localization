@@ -38,8 +38,8 @@ roslint_cpp()
 ###################################
 add_service_files(
   FILES
-  SetPose.srv
   SetDatum.srv
+  SetPose.srv
 )
 
 generate_messages(
@@ -121,14 +121,14 @@ target_link_libraries(navsat_transform_node navsat_transform ${catkin_LIBRARIES}
 ## Mark executables and/or libraries for installation
 install(TARGETS
   ekf
+  ekf_localization_node
   filter_base
   filter_utilities
   navsat_transform
+  navsat_transform_node
   ros_filter
   ros_filter_utilities
   ukf
-  ekf_localization_node
-  navsat_transform_node
   ukf_localization_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
