@@ -1711,7 +1711,6 @@ namespace RobotLocalization
       worldBaseLinkTransMsg_.header.stamp = filteredPosition.header.stamp + tfTimeOffset_;
       worldBaseLinkTransMsg_.header.frame_id = filteredPosition.header.frame_id;
       worldBaseLinkTransMsg_.child_frame_id = filteredPosition.child_frame_id;
-
       worldBaseLinkTransMsg_.transform.translation.x = filteredPosition.pose.pose.position.x;
       worldBaseLinkTransMsg_.transform.translation.y = filteredPosition.pose.pose.position.y;
       worldBaseLinkTransMsg_.transform.translation.z = filteredPosition.pose.pose.position.z;
