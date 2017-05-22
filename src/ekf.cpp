@@ -33,22 +33,115 @@
 #include "robot_localization/ekf.h"
 #include "robot_localization/filter_common.h"
 
-#include <XmlRpcException.h>
+#include <xmlrpcpp/XmlRpcException.h>
 
 #include <iomanip>
 #include <limits>
 #include <sstream>
 #include <vector>
 
+  std::auto_ptr<Eigen::VectorXd> RobotLocalization::Ekf::stateSubset (NULL);
+  std::auto_ptr<Eigen::VectorXd> RobotLocalization::Ekf::measurementSubset (NULL);
+  std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::measurementCovarianceSubset (NULL);
+  std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::stateToMeasurementSubset (NULL);
+  std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::kalmanGainSubset (NULL);
+  std::auto_ptr<Eigen::VectorXd> RobotLocalization::Ekf::innovationSubset (NULL);
+  std::auto_ptr<std::vector<size_t> > RobotLocalization::Ekf::updateIndices ( NULL);
+  std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::pht (NULL);
+  std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::phrInv (NULL);
+  std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::hphrInv (NULL);
+  std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::gainResidual (NULL);
+    Eigen::MatrixXd processNoiseCovariance;
+    Eigen::MatrixXd dynamicProcessNoiseCovariance;
 namespace RobotLocalization
 {
   Ekf::Ekf(std::vector<double>) :
     FilterBase()  // Must initialize filter base!
   {
+    size_t i;
+    size_t j;
+    // Now set up the relevant matrices
+    stateSubset.reset(new Eigen::VectorXd);
+    measurementSubset.reset(new Eigen::VectorXd);
+    measurementCovarianceSubset.reset(new Eigen::MatrixXd);
+    stateToMeasurementSubset.reset(new Eigen::MatrixXd);
+    kalmanGainSubset.reset(new Eigen::MatrixXd);
+    innovationSubset.reset(new Eigen::VectorXd);
+    updateIndices.reset(new std::vector<size_t>);
+    pht.reset(new Eigen::MatrixXd);
+    phrInv.reset(new Eigen::MatrixXd);
+    hphrInv.reset(new Eigen::MatrixXd);
+    gainResidual.reset(new Eigen::MatrixXd);
+    Eigen::MatrixXd processNoiseCovariance;
+    Eigen::MatrixXd dynamicProcessNoiseCovariance;
+    
+
+/*
+    stateSubset = new Eigen::VectorXd();//(updateSize);                              // x (in most literature)
+    measurementSubset = new Eigen::VectorXd();//(updateSize);                        // z
+    measurementCovarianceSubset = new Eigen::MatrixXd();//(updateSize, updateSize);  // R
+    stateToMeasurementSubset = new Eigen::MatrixXd();//(updateSize, state_.rows());  // H
+    kalmanGainSubset = new Eigen::MatrixXd();//(state_.rows(), updateSize);          // K
+    innovationSubset = new Eigen::VectorXd();//(updateSize);                         // z - Hx
+    // how many states are going to be updated in current loop
+    updateIndices = new std::vector<size_t>;
+    size_t updateSize;
+    // (1) Compute the Kalman gain: K = (PH') / (HPH' + R)
+    pht = new Eigen::MatrixXd();// = estimateErrorCovariance_ * stateToMeasurementSubset.transpose();
+    hphrInv = new Eigen::MatrixXd();//  = (stateToMeasurementSubset * pht + measurementCovarianceSubset).inverse();
+    // (4) Update the estimate error covariance using the Joseph form: (I - KH)P(I - KH)' + KRK'
+    gainResidual = new Eigen::MatrixXd();// = identity_;
+    */
+      //
+      //    PREDICT
+      //    double roll;/ = state_(StateMemberRoll);
+    double roll;// = state_(StateMemberRoll);
+    double pitch;// = state_(StateMemberPitch);
+    double yaw;// = state_(StateMemberYaw);
+    double xVel;// = state_(StateMemberVx);
+    double yVel;// = state_(StateMemberVy);
+    double zVel;//= state_(StateMemberVz);
+    double rollVel;// = state_(StateMemberVroll);
+    double pitchVel;// = state_(StateMemberVpitch);
+    double yawVel;// = state_(StateMemberVyaw);
+    double xAcc;// = state_(StateMemberAx);
+    double yAcc;// = state_(StateMemberAy);
+    double zAcc;// = state_(StateMemberAz);
+
+    // We'll eed these trig calculations a lot.
+    double sp;// = ::sin(pitch);
+    double cp;// = ::cos(pitch);
+    double sr;// = ::sin(roll);
+    double cr;// = ::cos(roll);
+    double sy;// = ::sin(yaw);
+    double cy;// = ::cos(yaw);
+    double xCoeff;// = 0.0;
+    double yCoeff;// = 0.0;
+    double zCoeff;// = 0.0;
+    double oneHalfATSquared;// = 0.5 * delta * delta;
+    double dFx_dR;// = (yCoeff * yVel + zCoeff * zVel) * delta +
+    double dFR_dR;// = 1 + (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dFx_dP;// = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    double dFR_dP;// = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dFx_dY;// = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    double dFR_dY;// = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dFy_dR;// = (yCoeff * yVel + zCoeff * zVel) * delta +
+    double dFP_dR;// = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dFy_dP;// = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    double dFP_dP;// = 1 + (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dFy_dY;// = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    double dFP_dY;// = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dFz_dR;// = (yCoeff * yVel + zCoeff * zVel) * delta +
+    double dFY_dR;// = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    double dFz_dP;// = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    double dFY_dP;// = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+
+   // processNoiseCovariance = new Eigen::MatrixXd();// = &processNoiseCovariance_;
   }
 
   Ekf::~Ekf()
   {
+
   }
 
   void Ekf::correct(const Measurement &measurement)
@@ -65,8 +158,8 @@ namespace RobotLocalization
     // attempt to maximize efficiency in Eigen.
 
     // First, determine how many state vector values we're updating
-    std::vector<size_t> updateIndices;
-    for (size_t i = 0; i < measurement.updateVector_.size(); ++i)
+    updateIndices->clear();
+    for (i = 0; i < measurement.updateVector_.size(); ++i)
     {
       if (measurement.updateVector_[i])
       {
@@ -81,51 +174,50 @@ namespace RobotLocalization
         }
         else
         {
-          updateIndices.push_back(i);
+          updateIndices->push_back(i);
         }
       }
     }
 
-    FB_DEBUG("Update indices are:\n" << updateIndices << "\n");
+    FB_DEBUG("Update indices are:\n" << (*updateIndices) << "\n");
 
-    size_t updateSize = updateIndices.size();
+    updateSize = updateIndices->size();
 
-    // Now set up the relevant matrices
-    Eigen::VectorXd stateSubset(updateSize);                              // x (in most literature)
-    Eigen::VectorXd measurementSubset(updateSize);                        // z
-    Eigen::MatrixXd measurementCovarianceSubset(updateSize, updateSize);  // R
-    Eigen::MatrixXd stateToMeasurementSubset(updateSize, state_.rows());  // H
-    Eigen::MatrixXd kalmanGainSubset(state_.rows(), updateSize);          // K
-    Eigen::VectorXd innovationSubset(updateSize);                         // z - Hx
+    stateSubset->resize(updateSize);                              // x (in most literature)
+    measurementSubset->resize(updateSize);                        // z
+    measurementCovarianceSubset->resize(updateSize, updateSize);  // R
+    stateToMeasurementSubset->resize(updateSize, state_.rows());  // H
+    kalmanGainSubset->resize(state_.rows(), updateSize);          // K
+    innovationSubset->resize(updateSize);                         // z - Hx
 
-    stateSubset.setZero();
-    measurementSubset.setZero();
-    measurementCovarianceSubset.setZero();
-    stateToMeasurementSubset.setZero();
-    kalmanGainSubset.setZero();
-    innovationSubset.setZero();
+    stateSubset->setZero();
+    measurementSubset->setZero();
+    measurementCovarianceSubset->setZero();
+    stateToMeasurementSubset->setZero();
+    kalmanGainSubset->setZero();
+    innovationSubset->setZero();
 
     // Now build the sub-matrices from the full-sized matrices
-    for (size_t i = 0; i < updateSize; ++i)
+    for (i = 0; i < updateSize; ++i)
     {
-      measurementSubset(i) = measurement.measurement_(updateIndices[i]);
-      stateSubset(i) = state_(updateIndices[i]);
+      (*measurementSubset)(i) = measurement.measurement_((*updateIndices)[i]);
+      (*stateSubset)(i) = state_((*updateIndices)[i]);
 
-      for (size_t j = 0; j < updateSize; ++j)
+      for (j = 0; j < updateSize; ++j)
       {
-        measurementCovarianceSubset(i, j) = measurement.covariance_(updateIndices[i], updateIndices[j]);
+        (*measurementCovarianceSubset)(i, j) = measurement.covariance_((*updateIndices)[i], (*updateIndices)[j]);
       }
 
       // Handle negative (read: bad) covariances in the measurement. Rather
       // than exclude the measurement or make up a covariance, just take
       // the absolute value.
-      if (measurementCovarianceSubset(i, i) < 0)
+      if ((*measurementCovarianceSubset)(i, i) < 0)
       {
         FB_DEBUG("WARNING: Negative covariance for index " << i <<
-                 " of measurement (value is" << measurementCovarianceSubset(i, i) <<
+                 " of measurement (value is" << (*measurementCovarianceSubset)(i, i) <<
                  "). Using absolute value...\n");
 
-        measurementCovarianceSubset(i, i) = ::fabs(measurementCovarianceSubset(i, i));
+        (*measurementCovarianceSubset)(i, i) = ::fabs((*measurementCovarianceSubset)(i, i));
       }
 
       // If the measurement variance for a given variable is very
@@ -134,72 +226,78 @@ namespace RobotLocalization
       // the Kalman gain computation will blow up. Really, no
       // measurement can be completely without error, so add a small
       // amount in that case.
-      if (measurementCovarianceSubset(i, i) < 1e-9)
+      if ((*measurementCovarianceSubset)(i, i) < 1e-9)
       {
-        FB_DEBUG("WARNING: measurement had very small error covariance for index " << updateIndices[i] <<
+        FB_DEBUG("WARNING: measurement had very small error covariance for index " << (*updateIndices)[i] <<
                  ". Adding some noise to maintain filter stability.\n");
 
-        measurementCovarianceSubset(i, i) = 1e-9;
+        (*measurementCovarianceSubset)(i, i) = 1e-9;
       }
     }
 
     // The state-to-measurement function, h, will now be a measurement_size x full_state_size
     // matrix, with ones in the (i, i) locations of the values to be updated
-    for (size_t i = 0; i < updateSize; ++i)
+    for (i = 0; i < updateSize; ++i)
     {
-      stateToMeasurementSubset(i, updateIndices[i]) = 1;
+      (*stateToMeasurementSubset)(i, (*updateIndices)[i]) = 1;
     }
 
-    FB_DEBUG("Current state subset is:\n" << stateSubset <<
-             "\nMeasurement subset is:\n" << measurementSubset <<
-             "\nMeasurement covariance subset is:\n" << measurementCovarianceSubset <<
-             "\nState-to-measurement subset is:\n" << stateToMeasurementSubset << "\n");
+    FB_DEBUG("Current state subset is:\n" << (*stateSubset) <<
+             "\nMeasurement subset is:\n" << (*measurementSubset) <<
+             "\nMeasurement covariance subset is:\n" << (*measurementCovarianceSubset) <<
+             "\nState-to-measurement subset is:\n" << (*stateToMeasurementSubset) << "\n");
 
     // (1) Compute the Kalman gain: K = (PH') / (HPH' + R)
-    Eigen::MatrixXd pht = estimateErrorCovariance_ * stateToMeasurementSubset.transpose();
-    Eigen::MatrixXd hphrInv  = (stateToMeasurementSubset * pht + measurementCovarianceSubset).inverse();
-    kalmanGainSubset.noalias() = pht * hphrInv;
+    *pht = estimateErrorCovariance_ * stateToMeasurementSubset->transpose();
+    *hphrInv  = ((*stateToMeasurementSubset) * (*pht) + (*measurementCovarianceSubset)).inverse();
+    kalmanGainSubset->noalias() = (*pht) * (*hphrInv);
 
-    innovationSubset = (measurementSubset - stateSubset);
+    (*innovationSubset) = ((*measurementSubset) - (*stateSubset));
 
     // Wrap angles in the innovation
-    for (size_t i = 0; i < updateSize; ++i)
+    for (i = 0; i < updateSize; ++i)
     {
-      if (updateIndices[i] == StateMemberRoll  ||
-          updateIndices[i] == StateMemberPitch ||
-          updateIndices[i] == StateMemberYaw)
+      if ((*updateIndices)[i] == StateMemberRoll  ||
+          (*updateIndices)[i] == StateMemberPitch ||
+          (*updateIndices)[i] == StateMemberYaw)
       {
-        while (innovationSubset(i) < -PI)
+        while ((*innovationSubset)(i) < -PI)
         {
-          innovationSubset(i) += TAU;
+          (*innovationSubset)(i) += TAU;
         }
 
-        while (innovationSubset(i) > PI)
+        while ((*innovationSubset)(i) > PI)
         {
-          innovationSubset(i) -= TAU;
+          (*innovationSubset)(i) -= TAU;
         }
       }
     }
-
+    
     // (2) Check Mahalanobis distance between mapped measurement and state.
-    if (checkMahalanobisThreshold(innovationSubset, hphrInv, measurement.mahalanobisThresh_))
+    if (checkMahalanobisThreshold((*innovationSubset), (*hphrInv), measurement.mahalanobisThresh_))
     {
       // (3) Apply the gain to the difference between the state and measurement: x = x + K(z - Hx)
-      state_.noalias() += kalmanGainSubset * innovationSubset;
-
+      state_.noalias() += (*kalmanGainSubset) * (*innovationSubset);
+      FB_DEBUG("PHT:\n" << (*pht) <<
+             "\nhphrInv:\n" << (*hphrInv) <<
+             "\nestimateErrorCovariance_:\n" << estimateErrorCovariance_ <<
+             "\n(*stateToMeasurementSubset) * (*pht):\n" << (*stateToMeasurementSubset) * (*pht) << "\n"<<
+             "\n(*measurementCovarianceSubset):\n" << (*measurementCovarianceSubset) << "\n"<<
+             "\n(*stateToMeasurementSubset) * (*pht) + (*measurementCovarianceSubset):\n" << (*stateToMeasurementSubset) * (*pht) + (*measurementCovarianceSubset) << "\n"<<
+             "\nSUM RANK:\n" << ((*stateToMeasurementSubset) * (*pht) + (*measurementCovarianceSubset)).eigenvalues() << "\n");
       // (4) Update the estimate error covariance using the Joseph form: (I - KH)P(I - KH)' + KRK'
-      Eigen::MatrixXd gainResidual = identity_;
-      gainResidual.noalias() -= kalmanGainSubset * stateToMeasurementSubset;
-      estimateErrorCovariance_ = gainResidual * estimateErrorCovariance_ * gainResidual.transpose();
-      estimateErrorCovariance_.noalias() += kalmanGainSubset *
-                                            measurementCovarianceSubset *
-                                            kalmanGainSubset.transpose();
+      *gainResidual = identity_;
+      gainResidual->noalias() -= (*kalmanGainSubset) * (*stateToMeasurementSubset);
+      estimateErrorCovariance_ = (*gainResidual) * estimateErrorCovariance_ * gainResidual->transpose();
+      estimateErrorCovariance_.noalias() += (*kalmanGainSubset) *
+                                            (*measurementCovarianceSubset) *
+                                            kalmanGainSubset->transpose();
 
       // Handle wrapping of angles
       wrapStateAngles();
 
-      FB_DEBUG("Kalman gain subset is:\n" << kalmanGainSubset <<
-               "\nInnovation is:\n" << innovationSubset <<
+      FB_DEBUG("Kalman gain subset is:\n" << (*kalmanGainSubset) <<
+               "\nInnovation is:\n" << (*innovationSubset) <<
                "\nCorrected full state is:\n" << state_ <<
                "\nCorrected full estimate error covariance is:\n" << estimateErrorCovariance_ <<
                "\n\n---------------------- /Ekf::correct ----------------------\n");
@@ -212,28 +310,28 @@ namespace RobotLocalization
              "delta is " << delta << "\n" <<
              "state is " << state_ << "\n");
 
-    double roll = state_(StateMemberRoll);
-    double pitch = state_(StateMemberPitch);
-    double yaw = state_(StateMemberYaw);
-    double xVel = state_(StateMemberVx);
-    double yVel = state_(StateMemberVy);
-    double zVel = state_(StateMemberVz);
-    double rollVel = state_(StateMemberVroll);
-    double pitchVel = state_(StateMemberVpitch);
-    double yawVel = state_(StateMemberVyaw);
-    double xAcc = state_(StateMemberAx);
-    double yAcc = state_(StateMemberAy);
-    double zAcc = state_(StateMemberAz);
+    roll = state_(StateMemberRoll);
+    pitch = state_(StateMemberPitch);
+    yaw = state_(StateMemberYaw);
+    xVel = state_(StateMemberVx);
+    yVel = state_(StateMemberVy);
+    zVel = state_(StateMemberVz);
+    rollVel = state_(StateMemberVroll);
+    pitchVel = state_(StateMemberVpitch);
+    yawVel = state_(StateMemberVyaw);
+    xAcc = state_(StateMemberAx);
+    yAcc = state_(StateMemberAy);
+    zAcc = state_(StateMemberAz);
 
     // We'll need these trig calculations a lot.
-    double sp = ::sin(pitch);
-    double cp = ::cos(pitch);
+    sp = ::sin(pitch);
+    cp = ::cos(pitch);
 
-    double sr = ::sin(roll);
-    double cr = ::cos(roll);
+    sr = ::sin(roll);
+    cr = ::cos(roll);
 
-    double sy = ::sin(yaw);
-    double cy = ::cos(yaw);
+    sy = ::sin(yaw);
+    cy = ::cos(yaw);
 
     prepareControl(referenceTime, delta);
 
@@ -271,63 +369,63 @@ namespace RobotLocalization
 
     // Prepare the transfer function Jacobian. This function is analytically derived from the
     // transfer function.
-    double xCoeff = 0.0;
-    double yCoeff = 0.0;
-    double zCoeff = 0.0;
-    double oneHalfATSquared = 0.5 * delta * delta;
+    xCoeff = 0.0;
+    yCoeff = 0.0;
+    zCoeff = 0.0;
+    oneHalfATSquared = 0.5 * delta * delta;
 
     yCoeff = cy * sp * cr + sy * sr;
     zCoeff = -cy * sp * sr + sy * cr;
-    double dFx_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
+    dFx_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
                     (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFR_dR = 1 + (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    dFR_dR = 1 + (yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = -cy * sp;
     yCoeff = cy * cp * sr;
     zCoeff = cy * cp * cr;
-    double dFx_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    dFx_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
                     (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFR_dP = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    dFR_dP = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = -sy * cp;
     yCoeff = -sy * sp * sr - cy * cr;
     zCoeff = -sy * sp * cr + cy * sr;
-    double dFx_dY = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    dFx_dY = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
                     (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFR_dY = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    dFR_dY = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     yCoeff = sy * sp * cr - cy * sr;
     zCoeff = -sy * sp * sr - cy * cr;
-    double dFy_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
+    dFy_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
                     (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFP_dR = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    dFP_dR = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = -sy * sp;
     yCoeff = sy * cp * sr;
     zCoeff = sy * cp * cr;
-    double dFy_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    dFy_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
                     (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFP_dP = 1 + (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    dFP_dP = 1 + (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = cy * cp;
     yCoeff = cy * sp * sr - sy * cr;
     zCoeff = cy * sp * cr + sy * sr;
-    double dFy_dY = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    dFy_dY = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
                     (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFP_dY = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    dFP_dY = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     yCoeff = cp * cr;
     zCoeff = -cp * sr;
-    double dFz_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
+    dFz_dR = (yCoeff * yVel + zCoeff * zVel) * delta +
                     (yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFY_dR = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    dFY_dR = (yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     xCoeff = -cp;
     yCoeff = -sp * sr;
     zCoeff = -sp * cr;
-    double dFz_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
+    dFz_dP = (xCoeff * xVel + yCoeff * yVel + zCoeff * zVel) * delta +
                     (xCoeff * xAcc + yCoeff * yAcc + zCoeff * zAcc) * oneHalfATSquared;
-    double dFY_dP = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
+    dFY_dP = (xCoeff * rollVel + yCoeff * pitchVel + zCoeff * yawVel) * delta;
 
     // Much of the transfer function Jacobian is identical to the transfer function
     transferFunctionJacobian_ = transferFunction_;
@@ -353,12 +451,12 @@ namespace RobotLocalization
              "\nProcess noise covariance is:\n" << processNoiseCovariance_ <<
              "\nCurrent state is:\n" << state_ << "\n");
 
-    Eigen::MatrixXd *processNoiseCovariance = &processNoiseCovariance_;
-
+    //processNoiseCovariance_ptr = &processNoiseCovariance_;
+    processNoiseCovariance = processNoiseCovariance_;
     if (useDynamicProcessNoiseCovariance_)
     {
       computeDynamicProcessNoiseCovariance(state_, delta);
-      processNoiseCovariance = &dynamicProcessNoiseCovariance_;
+      processNoiseCovariance = dynamicProcessNoiseCovariance_;
     }
 
     // (1) Apply control terms, which are actually accelerations
@@ -386,7 +484,7 @@ namespace RobotLocalization
     estimateErrorCovariance_ = (transferFunctionJacobian_ *
                                 estimateErrorCovariance_ *
                                 transferFunctionJacobian_.transpose());
-    estimateErrorCovariance_.noalias() += delta * (*processNoiseCovariance);
+    estimateErrorCovariance_.noalias() += delta * (processNoiseCovariance);
 
     FB_DEBUG("Predicted estimate error covariance is:\n" << estimateErrorCovariance_ <<
              "\n\n--------------------- /Ekf::predict ----------------------\n");

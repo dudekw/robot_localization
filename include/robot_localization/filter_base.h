@@ -38,14 +38,13 @@
 
 #include <Eigen/Dense>
 
-#include <algorithm>
-#include <limits>
-#include <map>
 #include <ostream>
-#include <queue>
-#include <set>
-#include <string>
 #include <vector>
+#include <set>
+#include <map>
+#include <queue>
+#include <limits>
+#include <string>
 
 #include <boost/shared_ptr.hpp>
 
@@ -150,6 +149,17 @@ typedef boost::shared_ptr<FilterState> FilterStatePtr;
 
 class FilterBase
 {
+  private:
+    // Difference between the time stamp of the most recent measurement and the currently obtained data
+    double measurementTimeDelta;
+    static std::auto_ptr<Eigen::MatrixXd> velocityMatrix_ptr;
+
+    size_t measurementLength;
+    bool timedOut;
+    size_t controlInd;
+    double sqMahalanobis;
+    double threshold;
+
   public:
     //! @brief Constructor for the FilterBase class
     //!
@@ -367,7 +377,7 @@ class FilterBase
       double limit = accelerationLimit;
       double gain = accelerationGain;
 
-      if (decelerating)
+      if(decelerating)
       {
         limit = decelerationLimit;
         gain = decelerationGain;
