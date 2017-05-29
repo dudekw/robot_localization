@@ -46,7 +46,7 @@
   std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::stateToMeasurementSubset (NULL);
   std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::kalmanGainSubset (NULL);
   std::auto_ptr<Eigen::VectorXd> RobotLocalization::Ekf::innovationSubset (NULL);
-  std::auto_ptr<std::vector<size_t> > RobotLocalization::Ekf::updateIndices ( NULL);
+  std::auto_ptr<Eigen::VectorXd > RobotLocalization::Ekf::updateIndices ( NULL);
   std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::pht (NULL);
   std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::phrInv (NULL);
   std::auto_ptr<Eigen::MatrixXd> RobotLocalization::Ekf::hphrInv (NULL);
@@ -67,7 +67,7 @@ namespace RobotLocalization
     stateToMeasurementSubset.reset(new Eigen::MatrixXd);
     kalmanGainSubset.reset(new Eigen::MatrixXd);
     innovationSubset.reset(new Eigen::VectorXd);
-    updateIndices.reset(new std::vector<size_t>);
+    updateIndices.reset(new Eigen::VectorXd);
     pht.reset(new Eigen::MatrixXd);
     phrInv.reset(new Eigen::MatrixXd);
     hphrInv.reset(new Eigen::MatrixXd);
@@ -143,6 +143,20 @@ namespace RobotLocalization
   {
 
   }
+void Ekf::initialize(const Eigen::VectorXd &update_vector, const size_t state_size)
+{
+  updateIndices.reset(new Eigen::VectorXd(update_vector.size()));
+
+  updateIndices->setZero();
+  (*updateIndices) = update_vector;
+  updateSize = updateIndices->size();
+  stateSubset->resize(updateSize);                              // x (in most literature)
+  measurementSubset->resize(updateSize);                        // z
+  measurementCovarianceSubset->resize(updateSize, updateSize);  // R
+  stateToMeasurementSubset->resize(updateSize, state_size);  // H
+  kalmanGainSubset->resize(state_size, updateSize);          // K
+  innovationSubset->resize(updateSize);                         // z - Hx
+}
 
   void Ekf::correct(const Measurement &measurement)
   {
@@ -151,14 +165,15 @@ namespace RobotLocalization
              "Topic is:\n" << measurement.topicName_ << "\n"
              "Measurement is:\n" << measurement.measurement_ << "\n"
              "Measurement topic name is:\n" << measurement.topicName_ << "\n\n"
-             "Measurement covariance is:\n" << measurement.covariance_ << "\n");
+             "Measurement covariance is:\n" << measurement.covariance_ << "\n"
+             "updateVector_ is:\n"<< measurement.updateVector_);
 
     // We don't want to update everything, so we need to build matrices that only update
     // the measured parts of our state vector. Throughout prediction and correction, we
     // attempt to maximize efficiency in Eigen.
 
     // First, determine how many state vector values we're updating
-    updateIndices->clear();
+    updateIndices->setZero();
     for (i = 0; i < measurement.updateVector_.size(); ++i)
     {
       if (measurement.updateVector_[i])
@@ -167,32 +182,25 @@ namespace RobotLocalization
         if (std::isnan(measurement.measurement_(i)))
         {
           FB_DEBUG("Value at index " << i << " was nan. Excluding from update.\n");
+          (*updateIndices)(i) = -1;
         }
         else if (std::isinf(measurement.measurement_(i)))
         {
           FB_DEBUG("Value at index " << i << " was inf. Excluding from update.\n");
+          (*updateIndices)(i) = -1;
         }
-        else
+        else 
         {
-          updateIndices->push_back(i);
+          (*updateIndices)(i) = i;
         }
       }
     }
-
     FB_DEBUG("Update indices are:\n" << (*updateIndices) << "\n");
 
-    updateSize = updateIndices->size();
-
-    stateSubset->resize(updateSize);                              // x (in most literature)
-    measurementSubset->resize(updateSize);                        // z
-    measurementCovarianceSubset->resize(updateSize, updateSize);  // R
-    stateToMeasurementSubset->resize(updateSize, state_.rows());  // H
-    kalmanGainSubset->resize(state_.rows(), updateSize);          // K
-    innovationSubset->resize(updateSize);                         // z - Hx
 
     stateSubset->setZero();
     measurementSubset->setZero();
-    measurementCovarianceSubset->setZero();
+    measurementCovarianceSubset->setIdentity();
     stateToMeasurementSubset->setZero();
     kalmanGainSubset->setZero();
     innovationSubset->setZero();
@@ -200,38 +208,40 @@ namespace RobotLocalization
     // Now build the sub-matrices from the full-sized matrices
     for (i = 0; i < updateSize; ++i)
     {
-      (*measurementSubset)(i) = measurement.measurement_((*updateIndices)[i]);
-      (*stateSubset)(i) = state_((*updateIndices)[i]);
-
-      for (j = 0; j < updateSize; ++j)
+      if ((*updateIndices)[i] != -1 && (*updateIndices)[i] != 0)
       {
-        (*measurementCovarianceSubset)(i, j) = measurement.covariance_((*updateIndices)[i], (*updateIndices)[j]);
-      }
+        (*measurementSubset)(i) = measurement.measurement_((*updateIndices)[i]);
+        (*stateSubset)(i) = state_((*updateIndices)[i]);
+        for (j = 0; j < updateSize; ++j)
+        {
+          (*measurementCovarianceSubset)(i, j) = measurement.covariance_((*updateIndices)[i], (*updateIndices)[j]);
+        }
 
-      // Handle negative (read: bad) covariances in the measurement. Rather
-      // than exclude the measurement or make up a covariance, just take
-      // the absolute value.
-      if ((*measurementCovarianceSubset)(i, i) < 0)
-      {
-        FB_DEBUG("WARNING: Negative covariance for index " << i <<
-                 " of measurement (value is" << (*measurementCovarianceSubset)(i, i) <<
-                 "). Using absolute value...\n");
+        // Handle negative (read: bad) covariances in the measurement. Rather
+        // than exclude the measurement or make up a covariance, just take
+        // the absolute value.
+        if ((*measurementCovarianceSubset)(i, i) < 0)
+        {
+          FB_DEBUG("WARNING: Negative covariance for index " << i <<
+                   " of measurement (value is" << (*measurementCovarianceSubset)(i, i) <<
+                   "). Using absolute value...\n");
 
-        (*measurementCovarianceSubset)(i, i) = ::fabs((*measurementCovarianceSubset)(i, i));
-      }
+          (*measurementCovarianceSubset)(i, i) = ::fabs((*measurementCovarianceSubset)(i, i));
+        }
 
-      // If the measurement variance for a given variable is very
-      // near 0 (as in e-50 or so) and the variance for that
-      // variable in the covariance matrix is also near zero, then
-      // the Kalman gain computation will blow up. Really, no
-      // measurement can be completely without error, so add a small
-      // amount in that case.
-      if ((*measurementCovarianceSubset)(i, i) < 1e-9)
-      {
-        FB_DEBUG("WARNING: measurement had very small error covariance for index " << (*updateIndices)[i] <<
-                 ". Adding some noise to maintain filter stability.\n");
+        // If the measurement variance for a given variable is very
+        // near 0 (as in e-50 or so) and the variance for that
+        // variable in the covariance matrix is also near zero, then
+        // the Kalman gain computation will blow up. Really, no
+        // measurement can be completely without error, so add a small
+        // amount in that case.
+        if ((*measurementCovarianceSubset)(i, i) < 1e-9)
+        {
+          FB_DEBUG("WARNING: measurement had very small error covariance for index " << (*updateIndices)[i] <<
+                   ". Adding some noise to maintain filter stability.\n");
 
-        (*measurementCovarianceSubset)(i, i) = 1e-9;
+          (*measurementCovarianceSubset)(i, i) = 1e-9;
+        }
       }
     }
 

@@ -238,7 +238,6 @@ namespace RobotLocalization
       {
         validateDelta(measurementTimeDelta);
         predict(measurement.time_, measurementTimeDelta);
-
         // Return this to the user
         predictedState_ = state_;
       }

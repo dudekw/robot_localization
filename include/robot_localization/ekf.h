@@ -63,7 +63,7 @@ class Ekf: public FilterBase
         static std::auto_ptr<Eigen::MatrixXd> kalmanGainSubset;//= NULL;//(state_.rows(), updateSize);          // K
         static std::auto_ptr<Eigen::VectorXd> innovationSubset;//= NULL;//(updateSize);                         // z - Hx
         // how many states are going to be updated in current loop
-        static std::auto_ptr<std::vector<size_t> > updateIndices;//= NULL;
+        static std::auto_ptr<Eigen::VectorXd> updateIndices;//= NULL;
         size_t updateSize;
         // (1) Compute the Kalman gain: K = (PH') / (HPH' + R)
         static std::auto_ptr<Eigen::MatrixXd> pht;//= NULL;// = estimateErrorCovariance_ *stateToMeasurementSubset.transpose();
@@ -130,6 +130,7 @@ class Ekf: public FilterBase
     //!
     explicit Ekf(std::vector<double> args = std::vector<double>());
 
+    void initialize(const Eigen::VectorXd &update_vector, const size_t state_size);
     //! @brief Destructor for the Ekf class
     //!
     ~Ekf();
